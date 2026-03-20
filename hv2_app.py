@@ -395,95 +395,102 @@ if modelo == "Atendimento Clínico":
                 key=f"upload_atendimento_{pid}",
             )
 
+            # agora só extrai se clicar no botão
             if arquivo is not None:
-                nome_arquivo = getattr(arquivo, "name", "")
-                ultima_fonte = st.session_state.pacientes[indice_paciente].get("ultima_fonte_arquivo", "")
+                st.markdown("### Arquivo selecionado")
+                st.caption(getattr(arquivo, "name", "Arquivo"))
 
-                if nome_arquivo != ultima_fonte:
+                if st.button(
+                    "Extrair",
+                    use_container_width=True,
+                    key=f"btn_extrair_arquivo_{pid}",
+                ):
                     texto_extraido = extrair_texto_arquivo(arquivo)
                     st.session_state.pacientes[indice_paciente]["texto_bruto"] = texto_extraido
                     st.session_state.pacientes[indice_paciente]["texto_sanitizado"] = ""
-                    st.session_state.pacientes[indice_paciente]["ultima_fonte_arquivo"] = nome_arquivo
+                    st.session_state.pacientes[indice_paciente]["ultima_fonte_arquivo"] = getattr(arquivo, "name", "")
                     st.session_state.pacientes[indice_paciente]["mostrar_bruto"] = True
                     st.session_state.pacientes[indice_paciente]["mostrar_sanitizado"] = False
                     st.session_state.pacientes[indice_paciente]["modo_revisao"] = False
                     st.session_state.pacientes[indice_paciente]["resultado"] = ""
                     st.session_state.pacientes[indice_paciente]["sugestoes"] = ""
+                    st.session_state.pacientes[indice_paciente]["status"] = "Texto extraído com sucesso."
+                    st.rerun()
 
-                if st.session_state.pacientes[indice_paciente].get("mostrar_bruto", False):
-                    st.markdown("### Texto Bruto")
-                    st.text_area(
-                        "",
-                        value=st.session_state.pacientes[indice_paciente].get("texto_bruto", ""),
-                        height=260,
-                        key=f"origem_{pid}",
-                        label_visibility="collapsed",
-                        disabled=True,
-                    )
+            if st.session_state.pacientes[indice_paciente].get("mostrar_bruto", False):
+                st.markdown("### Texto Bruto")
+                st.text_area(
+                    "",
+                    value=st.session_state.pacientes[indice_paciente].get("texto_bruto", ""),
+                    height=260,
+                    key=f"origem_{pid}",
+                    label_visibility="collapsed",
+                    disabled=True,
+                )
 
-                    if st.button(
-                        "Sanitizar",
-                        use_container_width=True,
-                        key=f"btn_sanitizar_arquivo_{pid}",
-                    ):
-                        bruto = st.session_state.pacientes[indice_paciente].get("texto_bruto", "").strip()
+                if st.button(
+                    "Sanitizar",
+                    use_container_width=True,
+                    key=f"btn_sanitizar_arquivo_{pid}",
+                ):
+                    bruto = st.session_state.pacientes[indice_paciente].get("texto_bruto", "").strip()
 
-                        if bruto:
-                            texto_sanitizado = sanitizar_texto(bruto)
-                            st.session_state.pacientes[indice_paciente]["texto_sanitizado"] = texto_sanitizado
-                            st.session_state.pacientes[indice_paciente]["mostrar_sanitizado"] = True
-                            st.session_state.pacientes[indice_paciente]["modo_revisao"] = False
-                            st.session_state.pacientes[indice_paciente]["resultado"] = ""
-                            st.session_state.pacientes[indice_paciente]["sugestoes"] = ""
-                            st.session_state.pacientes[indice_paciente]["status"] = "Texto sanitizado com sucesso."
-                        else:
-                            st.session_state.pacientes[indice_paciente]["status"] = "Nenhum texto para sanitizar."
-                        st.rerun()
+                    if bruto:
+                        texto_sanitizado = sanitizar_texto(bruto)
+                        st.session_state.pacientes[indice_paciente]["texto_sanitizado"] = texto_sanitizado
+                        st.session_state.pacientes[indice_paciente]["mostrar_sanitizado"] = True
+                        st.session_state.pacientes[indice_paciente]["modo_revisao"] = False
+                        st.session_state.pacientes[indice_paciente]["resultado"] = ""
+                        st.session_state.pacientes[indice_paciente]["sugestoes"] = ""
+                        st.session_state.pacientes[indice_paciente]["status"] = "Texto sanitizado com sucesso."
+                    else:
+                        st.session_state.pacientes[indice_paciente]["status"] = "Nenhum texto para sanitizar."
+                    st.rerun()
 
-                if st.session_state.pacientes[indice_paciente].get("mostrar_sanitizado", False):
-                    st.markdown("### Texto Sanitizado")
-                    st.text_area(
-                        "",
-                        value=st.session_state.pacientes[indice_paciente].get("texto_sanitizado", ""),
-                        height=220,
-                        key=f"sanitizado_{pid}",
-                        label_visibility="collapsed",
-                        disabled=True,
-                    )
+            if st.session_state.pacientes[indice_paciente].get("mostrar_sanitizado", False):
+                st.markdown("### Texto Sanitizado")
+                st.text_area(
+                    "",
+                    value=st.session_state.pacientes[indice_paciente].get("texto_sanitizado", ""),
+                    height=220,
+                    key=f"sanitizado_{pid}",
+                    label_visibility="collapsed",
+                    disabled=True,
+                )
 
-                    if st.button(
-                        "Revisar",
-                        use_container_width=True,
-                        key=f"btn_revisar_arquivo_{pid}",
-                    ):
-                        texto_sanitizado = st.session_state.pacientes[indice_paciente].get(
-                            "texto_sanitizado", ""
-                        ).strip()
+                if st.button(
+                    "Revisar",
+                    use_container_width=True,
+                    key=f"btn_revisar_arquivo_{pid}",
+                ):
+                    texto_sanitizado = st.session_state.pacientes[indice_paciente].get(
+                        "texto_sanitizado", ""
+                    ).strip()
 
-                        if texto_sanitizado:
-                            with st.spinner("Organizando conteúdo para revisão..."):
-                                texto_organizado = processar_texto_clinico(texto_sanitizado)
+                    if texto_sanitizado:
+                        with st.spinner("Organizando conteúdo para revisão..."):
+                            texto_organizado = processar_texto_clinico(texto_sanitizado)
 
-                            st.session_state.pacientes[indice_paciente]["resultado_revisao_ia"] = texto_organizado
+                        st.session_state.pacientes[indice_paciente]["resultado_revisao_ia"] = texto_organizado
 
-                            preencher_manual_a_partir_do_texto_organizado(
-                                texto_organizado,
-                                st.session_state.pacientes[indice_paciente],
-                            )
+                        preencher_manual_a_partir_do_texto_organizado(
+                            texto_organizado,
+                            st.session_state.pacientes[indice_paciente],
+                        )
 
-                            limpar_widgets_do_paciente(pid)
-                            carregar_campos_manuais(pid, st.session_state.pacientes[indice_paciente])
+                        limpar_widgets_do_paciente(pid)
+                        carregar_campos_manuais(pid, st.session_state.pacientes[indice_paciente])
 
-                            st.session_state.pacientes[indice_paciente]["modo_revisao"] = True
-                            st.session_state.pacientes[indice_paciente]["status"] = "Campos de revisão preenchidos."
-                        else:
-                            st.session_state.pacientes[indice_paciente]["status"] = "Sanitize antes de revisar."
-                        st.rerun()
+                        st.session_state.pacientes[indice_paciente]["modo_revisao"] = True
+                        st.session_state.pacientes[indice_paciente]["status"] = "Campos de revisão preenchidos."
+                    else:
+                        st.session_state.pacientes[indice_paciente]["status"] = "Sanitize antes de revisar."
+                    st.rerun()
 
     if anexar_origem == "Não" or paciente.get("modo_revisao", False):
         carregar_campos_manuais(pid, paciente)
 
-        st.markdown("### PASSO 03: Estruturação do Atendimento")
+        st.markdown("### Estrutura do Atendimento")
 
         imp = st.text_area("Impressões diagnósticas", height=120, key=widget_key("imp", pid))
         qp = st.text_area("Queixa", height=80, key=widget_key("qp", pid))
