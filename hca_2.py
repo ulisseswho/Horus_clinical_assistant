@@ -8,7 +8,7 @@ from app.services.pos_processamento import aplicar_regras
 from app.services.sanitizacao_service import sanitizar_texto
 from app.services.sugestoes_conduta_service import sugerir_condutas
 
-MODELO_IA = "gpt-4.1-mini"
+MODELO_IA = "gpt-4.1-mini + gpt-4.1"
 
 MANUAL_DEFAULTS = {
     "imp": "",
@@ -235,6 +235,43 @@ def preencher_manual_a_partir_do_texto_organizado(texto: str, paciente: dict):
     paciente["manual"]["glicemia"] = ""
 
 
+def renumerar_secao(texto: str, titulo_secao: str) -> str:
+    padrao = rf"({re.escape(titulo_secao)}\n)(.*?)(?=\n\n»» |\Z)"
+    match = re.search(padrao, texto, re.DOTALL)
+
+    if not match:
+        return texto
+
+    cabecalho = match.group(1)
+    conteudo = match.group(2).strip()
+
+    if not conteudo:
+        return texto
+
+    linhas = [linha.strip() for linha in conteudo.split("\n") if linha.strip()]
+    linhas_limpa = []
+
+    for linha in linhas:
+        linha = re.sub(r"^\d+\.\s*", "", linha).strip()
+        linha = re.sub(r"^[-•]\s*", "", linha).strip()
+        if linha:
+            linhas_limpa.append(linha)
+
+    if not linhas_limpa:
+        return texto
+
+    conteudo_novo = "\n".join(f"{i}. {linha}" for i, linha in enumerate(linhas_limpa, 1))
+
+    texto = re.sub(
+        padrao,
+        f"{cabecalho}{conteudo_novo}",
+        texto,
+        flags=re.DOTALL,
+    )
+
+    return texto
+
+
 def refinar_texto_final(texto: str) -> str:
     prompt = f"""
 Você é um médico com excelente redação técnica.
@@ -249,7 +286,10 @@ Regras obrigatórias:
 - Não alterar diagnósticos.
 - Não alterar a estrutura das seções iniciadas por »».
 - Apenas melhorar gramática, formalidade e clareza.
-- Em Impressão Diagnóstica e Condutas, mantenha numeração quando aplicável.
+- A seção »» Impressão Diagnóstica: deve permanecer numerada, com um item por linha.
+- A seção »» Condutas: deve permanecer numerada, com um item por linha.
+- Não transformar Impressão Diagnóstica em parágrafo.
+- Não transformar Condutas em parágrafo.
 - Em Condutas, transforme frases telegráficas em formulações médicas formais.
 
 Texto:
@@ -260,6 +300,7 @@ Texto:
         return resposta if resposta else texto
     except Exception:
         return texto
+
 
 st.set_page_config(page_title="HORUS CLINICAL ASSISTANT", layout="wide")
 
@@ -599,6 +640,8 @@ if modelo == "Atendimento Clínico":
                 texto_estruturado = aplicar_regras(limpar_saida(texto_base))
                 res = refinar_texto_final(texto_estruturado)
                 res = aplicar_regras(limpar_saida(res))
+                res = renumerar_secao(res, "»» Impressão Diagnóstica:")
+                res = renumerar_secao(res, "»» Condutas:")
 
             st.session_state.pacientes[indice_paciente]["resultado"] = res
             st.session_state.pacientes[indice_paciente]["status"] = "Atendimento gerado com sucesso."
