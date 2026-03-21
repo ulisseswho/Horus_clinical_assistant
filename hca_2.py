@@ -1,9 +1,10 @@
-import html
 import re
 import streamlit as st
 
+from app.infra.ai_client import gerar_texto
 from app.infra.ocr_engine import extrair_texto_pdf, extrair_texto_imagem
-from app.services.pipeline import processar_texto_clinico
+from app.services.pipeline import processar_texto_clinico, limpar_saida
+from app.services.pos_processamento import aplicar_regras
 from app.services.sanitizacao_service import sanitizar_texto
 from app.services.sugestoes_conduta_service import sugerir_condutas
 
@@ -91,6 +92,8 @@ def limpar_widgets_do_paciente(pid: str):
         f"upload_atendimento_{pid}",
         f"origem_{pid}",
         f"sanitizado_{pid}",
+        f"resultado_final_{pid}",
+        f"sugestoes_finais_{pid}",
     ]
 
     for chave in chaves:
@@ -231,6 +234,32 @@ def preencher_manual_a_partir_do_texto_organizado(texto: str, paciente: dict):
     paciente["manual"]["sato2"] = ""
     paciente["manual"]["glicemia"] = ""
 
+
+def refinar_texto_final(texto: str) -> str:
+    prompt = f"""
+Você é um médico com excelente redação técnica.
+
+Reescreva o texto abaixo em linguagem médica formal, clara e elegante.
+
+Regras obrigatórias:
+- Não inventar informações.
+- Não remover informações clínicas relevantes.
+- Não alterar valores numéricos.
+- Não alterar parâmetros vitais ou laboratoriais.
+- Não alterar diagnósticos.
+- Não alterar a estrutura das seções iniciadas por »».
+- Apenas melhorar gramática, formalidade e clareza.
+- Em Impressão Diagnóstica e Condutas, mantenha numeração quando aplicável.
+- Em Condutas, transforme frases telegráficas em formulações médicas formais.
+
+Texto:
+{texto}
+"""
+    try:
+        resposta = gerar_texto(prompt, modelo="gpt-4.1")
+        return resposta if resposta else texto
+    except Exception:
+        return texto
 
 st.set_page_config(page_title="HORUS CLINICAL ASSISTANT", layout="wide")
 
@@ -395,7 +424,6 @@ if modelo == "Atendimento Clínico":
                 key=f"upload_atendimento_{pid}",
             )
 
-            # agora só extrai se clicar no botão
             if arquivo is not None:
                 st.markdown("### Arquivo selecionado")
                 st.caption(getattr(arquivo, "name", "Arquivo"))
@@ -536,39 +564,41 @@ if modelo == "Atendimento Clínico":
             )
 
             texto_base = f"""
-IMPRESSÕES DIAGNÓSTICAS:
+»» Impressão Diagnóstica:
 {imp}
 
-QUEIXA PRINCIPAL:
+»» Queixa Principal:
 {qp}
 
-HDA:
+»» História da Doença Atual:
 {hda}
 
-HPP:
+»» Histórico Médico Pregresso:
 {hpp}
 
-EXAME FÍSICO:
+»» Exame Físico:
 {exame_fisico}
 
-PARÂMETROS NA ADMISSÃO:
+»» Parâmetros na admissão:
 {parametros}
 
-EXAMES LABORATORIAIS:
+»» Exames laboratoriais:
 {exames_lab}
 
-EXAMES DE IMAGEM:
+»» Exames de imagem:
 {exames_img}
 
-PARECERES:
+»» Pareceres:
 {pareceres}
 
-CONDUTAS:
+»» Condutas:
 {condutas}
 """
 
-            with st.spinner("Organizando atendimento..."):
-                res = processar_texto_clinico(texto_base)
+            with st.spinner("Gerando atendimento..."):
+                texto_estruturado = aplicar_regras(limpar_saida(texto_base))
+                res = refinar_texto_final(texto_estruturado)
+                res = aplicar_regras(limpar_saida(res))
 
             st.session_state.pacientes[indice_paciente]["resultado"] = res
             st.session_state.pacientes[indice_paciente]["status"] = "Atendimento gerado com sucesso."
@@ -578,6 +608,7 @@ CONDUTAS:
                     st.session_state.pacientes[indice_paciente]["sugestoes"] = sugerir_condutas(res)
             else:
                 st.session_state.pacientes[indice_paciente]["sugestoes"] = ""
+
             st.rerun()
 
 status_atual = st.session_state.pacientes[indice_paciente].get("status", "")
@@ -588,47 +619,19 @@ if status_atual:
     st.info(status_atual)
 
 if resultado_atual:
-    resultado_html = html.escape(resultado_atual).replace("\n", "<br>")
-
     st.markdown("### Resultado")
-    st.markdown(
-        f"""
-        <div style="
-            background: #ffffff;
-            border: 1px solid #d9d9d9;
-            border-radius: 10px;
-            padding: 16px 18px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 15px;
-            line-height: 1.45;
-            white-space: normal;
-            color: #111827;
-        ">
-            {resultado_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.text_area(
+        "Resultado final",
+        resultado_atual,
+        height=420,
+        label_visibility="collapsed",
     )
 
 if sugestoes_atuais:
-    sugestoes_html = html.escape(sugestoes_atuais).replace("\n", "<br>")
-
     st.markdown("### Sugestões")
-    st.markdown(
-        f"""
-        <div style="
-            background: #ffffff;
-            border: 1px solid #d9d9d9;
-            border-radius: 10px;
-            padding: 16px 18px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 15px;
-            line-height: 1.45;
-            white-space: normal;
-            color: #111827;
-        ">
-            {sugestoes_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.text_area(
+        "Sugestões finais",
+        sugestoes_atuais,
+        height=220,
+        label_visibility="collapsed",
     )
