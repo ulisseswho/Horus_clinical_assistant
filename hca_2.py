@@ -640,6 +640,9 @@ if modelo == "Atendimento Clínico":
                 texto_estruturado = aplicar_regras(limpar_saida(texto_base))
                 res = refinar_texto_final(texto_estruturado)
                 res = aplicar_regras(limpar_saida(res))
+                
+                if not res.strip().startswith("»» Atendimento Clínico"):
+                    res = "»» Atendimento Clínico\n\n" + res
                 res = renumerar_secao(res, "»» Impressão Diagnóstica:")
                 res = renumerar_secao(res, "»» Condutas:")
 

@@ -5,5 +5,3 @@ pdf2image
 python-docx
 openai
 python-dotenv
-poppler-utils
-tesseract-ocr
